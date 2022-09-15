@@ -27,7 +27,7 @@ async def FetchUrl(url: str) -> str:
     return page_content
 
 
-# 获取每一个有防控数据页面的内容（即页面源代码）
+# 获取页面源代码
 def get_page_source(text_url: str) -> str:
     # 创建事件循环，实现异步爬虫
     return asyncio.get_event_loop().run_until_complete(FetchUrl(text_url))
