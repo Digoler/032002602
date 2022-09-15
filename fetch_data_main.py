@@ -6,6 +6,27 @@ import random
 import time
 
 
+# 获取网页源代码
+async def FetchUrl(url: str) -> str:
+    # launch 方法新建一个 Browser 对象，然后赋值给 browser
+    browser = await launch({'headless': True, 'dumpio': True, 'autoClose': True})
+    # 调用 newPage方法相当于浏览器中新建了一个选项卡，同时新建了一个Page对象。
+    page = await browser.newPage()
+    # 绕过浏览器检测（关键步骤）
+    await page.evaluateOnNewDocument('() =>{ Object.defineProperties(navigator,'
+                                     '{ webdriver:{ get: () => false } }) }')
+    # 设置 UserAgent
+    await page.setUserAgent(
+        'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Mobile Safari/537.36 Edg/105.0.1343.27')
+    # Page 对象调用了 goto 方法就相当于在浏览器中输入了这个 URL，浏览器跳转到了对应的页面进行加载
+    await page.goto(url)
+    await asyncio.wait([page.waitForNavigation()], timeout=3)  # 等待页面加载完成
+    # 页面加载完成之后再调用 content 方法，返回当前浏览器页面的源代码
+    page_content = await page.content()
+    await browser.close()
+    return page_content
+
+
 # 获取每一个有防控数据页面的内容（即页面源代码）
 def get_page_source(text_url: str) -> str:
     # 创建事件循环，实现异步爬虫
@@ -65,28 +86,6 @@ def save_file(path: str, filename: str, text: str):
     # 保存文件
     with open(path + filename + ".txt", 'w', encoding='utf-8') as f:
         f.write(text)
-
-
-# 获取网页源代码
-async def FetchUrl(url: str) -> str:
-    # launch 方法新建一个 Browser 对象，然后赋值给 browser
-    browser = await launch({'headless': True, 'dumpio': True, 'autoClose': True})
-    # 调用 newPage方法相当于浏览器中新建了一个选项卡，同时新建了一个Page对象。
-    page = await browser.newPage()
-    # 绕过浏览器检测（关键步骤）
-    await page.evaluateOnNewDocument('() =>{ Object.defineProperties(navigator,'
-                                     '{ webdriver:{ get: () => false } }) }')
-    # 设置 UserAgent
-    await page.setUserAgent(
-        'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Mobile Safari/537.36 Edg/105.0.1343.27')
-    # Page 对象调用了 goto 方法就相当于在浏览器中输入了这个 URL，浏览器跳转到了对应的页面进行加载
-    await page.goto(url)
-    await asyncio.wait([page.waitForNavigation()], timeout=3)  # 等待页面加载完成
-    # 页面加载完成之后再调用 content 方法，返回当前浏览器页面的源代码
-    page_content = await page.content()
-    #
-    await browser.close()
-    return page_content
 
 
 if "__main__" == __name__:
