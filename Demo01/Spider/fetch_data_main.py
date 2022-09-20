@@ -1,28 +1,39 @@
+"""
+    @ author: 032002602陈俊龙
+    @ Document description: 这个文件用于爬取所有的疫情数据
+"""
 import asyncio
+import multiprocessing
+import time
+from multiprocessing import Pool
 from pyppeteer import launch
 import os
 from lxml import etree
-import random
-import time
+from Demo01.setting import *
 
 
 # 获取网页源代码
 async def FetchUrl(url: str) -> str:
     # launch 方法新建一个 Browser 对象，然后赋值给 browser
     browser = await launch({'headless': True, 'dumpio': True, 'autoClose': True})
+
     # 调用 newPage方法相当于浏览器中新建了一个选项卡，同时新建了一个Page对象。
     page = await browser.newPage()
+
     # 绕过浏览器检测（关键步骤）
     await page.evaluateOnNewDocument('() =>{ Object.defineProperties(navigator,'
                                      '{ webdriver:{ get: () => false } }) }')
     # 设置 UserAgent
     await page.setUserAgent(
         'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Mobile Safari/537.36 Edg/105.0.1343.27')
+
     # Page 对象调用了 goto 方法就相当于在浏览器中输入了这个 URL，浏览器跳转到了对应的页面进行加载
     await page.goto(url)
     await asyncio.wait([page.waitForNavigation()], timeout=3)  # 等待页面加载完成
+
     # 页面加载完成之后再调用 content 方法，返回当前浏览器页面的源代码
     page_content = await page.content()
+
     await browser.close()
     return page_content
 
@@ -39,9 +50,9 @@ def get_page_url() -> list:
     for page in range(1, 42):
         if page == 1:   # 第一页的时候，页面的url比较特殊，我们单独拿出来保存
             url_list.append('http://www.nhc.gov.cn/xcs/yqtb/list_gzbd.shtml')
-        else:   # 剩下的页面的url有规律，我们直接用 lambda匿名函数生成即可
+        else:   # 剩下的页面的url有规律
             # 拼接成完整的url
-            url_list.append(lambda page: 'http://www.nhc.gov.cn/xcs/yqtb/list_gzbd_' + str(page) + '.shtml')
+            url_list.append('http://www.nhc.gov.cn/xcs/yqtb/list_gzbd_' + str(page) + '.shtml')
     return url_list
 
 
@@ -81,6 +92,7 @@ def get_each_day_content(html_txt: str) -> str:
 
 # 保存文件到指定的目录
 def save_file(path: str, filename: str, text: str):
+    # 如果文件目录已经存在
     if not os.path.exists(path):
         os.makedirs(path)
     # 保存文件
@@ -88,23 +100,32 @@ def save_file(path: str, filename: str, text: str):
         f.write(text)
 
 
-if "__main__" == __name__:
-    start = time.time()  # 设置时间戳，查看程序运行时间
-    page_urls = get_page_url()    # 获取42个页面的url
-    for url in page_urls:   # 遍历每一个疫情通报页面
-        page_text = get_page_source(url)    # 这一步是获取疫情通报页面的页面源代码
-        time.sleep(random.randint(3, 6))    # 设计一个随机的程序睡眠时间，让程序更好地模仿人进行爬取页面数据
-        filenames = get_filenames(page_text)    # 提取出当前疫情通报页面的所有文件名
-        index = 0   # 设置文件名索引
-        links = get_link_url(page_text)  # 获取当前疫情通报页面的24条url
-        # ----------获取这个页面24天的疫情通报内容文本----------
-        for link in links:
-            html = get_page_source(link)    # 获取这一天的页面源代码
-            content = get_each_day_content(html)    # 从页面源代码中提取出我们需要的文本
-            print(filenames[index] + "爬取成功")    # 程序运行情况提示
-            save_file('C:/Users/ASUS/Desktop/数据防控数据1/', filenames[index], content)  # 保存文件到指定文件夹
-            index = index + 1
-        # ---------------------------------------- --------
-        print("-----" * 20)  # 爬取完一页所设置的标识情况，方便观察程序运行情况
+# 定义获取每一天文本的线程任务
+def fetch_task(url):
+    page_text = get_page_source(url)    # 获取疫情通报页面的页面源代码
+    filenames = get_filenames(page_text)    # 提取出当前疫情通报页面的所有文件名
+    index = 0   # 设置文件名索引
+    links = get_link_url(page_text)  # 获取当前疫情通报页面的24条url
+    # 获取这个页面24天的疫情通报内容文本
+    for link in links:
+        html = get_page_source(link)    # 获取这一天的页面源代码
+        content = get_each_day_content(html)    # 从页面源代码中提取出我们需要的文本
+        print(filenames[index] + "爬取成功")    # 程序运行情况提示
+        save_file(f'{TXT_SAVE_PATH}/', filenames[index], content)  # 保存文件到指定文件夹
+        index = index + 1
+
+
+# 主函数，用于向其他文件暴露调用接口
+def main():
+    start = time.time()     # 设置时间戳，查看程序运行时间
+    urls = get_page_url()  # 获取42个页面的url
+
+    pool = Pool(multiprocessing.cpu_count())  # 构建线程池，根据cpu情况来进行线程切换
+    pool.map(fetch_task, urls)  # 往线程池中加入任务
+
     end = time.time()
-    print(f"所有内容爬取完成，所用时间：{end - start}s")
+    print({end - start})
+
+
+if "__main__" == __name__:
+    main()
